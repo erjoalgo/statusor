@@ -2,10 +2,10 @@
   (:use :cl)
   (:export
    #:if-let-ok
-   #:make-error
-   #:handle-error
+   #:make-status
+   #:handle-status
    #:error-to-signal
-   #:signal-to-error
+   #:error-to-status
    #:nil-to-error
    #:->?))
 
@@ -15,15 +15,15 @@
   (if (null bindings)
       `(progn ,@on-success)
       (destructuring-bind ((val-var val-or-err) . rest) bindings
-        `(handle-error
-          (signal-to-error ,val-or-err)
+        `(handle-status
+          (error-to-status ,val-or-err)
           (,val-var (if-let-ok ,on-error-spec ,rest ,@on-success))
           ,on-error-spec))))
 
-(defmacro make-error (error-message)
+(defmacro make-status (error-message)
   `(values nil ,error-message))
 
-(defmacro handle-error (form
+(defmacro handle-status (form
                         &optional
                           on-success-spec
                           on-error-spec)
@@ -38,30 +38,31 @@
        (if (null ,err-var) ,on-success
            ,on-error))))
 
-(defmacro error-to-signal (form)
-  `(handle-error ,form
-                 nil
-                 (err
-                  (error "error on ~A:~% ~A" ',form err))))
+(defmacro status-to-error (form)
+  `(handle-status
+    ,form
+    nil ;; use default on-success, i.e. x => x
+    (err
+     (error "error on ~A:~% ~A" ',form err))))
 
-(defmacro signal-to-error (form)
+(defmacro error-to-status (form)
   `(handler-case ,form
      (error (err-signal)
-       (make-error err-signal))))
+       (make-status err-signal))))
 
 (defmacro nil-to-error (form &optional error-message)
   `(or ,form
-       (make-error
+       (make-status
         ,(or error-message (format nil "~A is nil" form)))))
 
 (defmacro ->? (forms &optional on-error-spec)
   (let ((val-var (gensym "val-var-")))
     (if (null (cadr forms))
-        `(handle-error ,(car forms)
+        `(handle-status ,(car forms)
                        (,val-var ,val-var)
                        ,on-error-spec)
         (destructuring-bind (first second . rest) forms
-          `(handle-error
-            (signal-to-error (,(car second) ,first ,@(cdr second)))
+          `(handle-status
+            (error-to-status (,(car second) ,first ,@(cdr second)))
             (,val-var (->? ,val-var ,@rest))
             ,on-error-spec)))))
