@@ -24,19 +24,20 @@
   `(values nil ,error-message))
 
 (defmacro handle-status (form
-                        &optional
-                          on-success-spec
-                          on-error-spec)
-  (destructuring-bind
-        ((val-var on-success) (err-var on-error))
-      `(
-        ,(or on-success-spec
-             (let ((sym (gensym "val-var-"))) `(,sym ,sym)))
-        ,(or on-error-spec
-             (let ((sym (gensym "err-var-"))) `(,sym (make-error ,sym)))))
-    `(multiple-value-bind (,val-var ,err-var) ,form
-       (if (null ,err-var) ,on-success
-           ,on-error))))
+                         &optional
+                           on-success-spec
+                           on-error-spec)
+  (destructuring-bind (val-var on-success)
+      (or on-success-spec
+          (let ((val-sym (gensym "VAL-VAR-")))
+            `(,val-sym ,val-sym)))
+    (destructuring-bind (err-var on-error)
+        (or on-error-spec
+            (let ((err-sym (gensym "ERR-VAR-")))
+              `(,err-sym (make-status ,err-sym))))
+      `(multiple-value-bind (,val-var ,err-var) ,form
+         (if (null ,err-var) ,on-success
+             ,on-error)))))
 
 (defmacro status-to-error (form)
   `(handle-status
